@@ -284,6 +284,23 @@
             color: #9ca3af;
             font-style: italic;
         }
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(52, 211, 153, 0.95);
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 9999px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+            z-index: 200;
+        }
+        .toast.show {
+            opacity: 1;
+        }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800">
@@ -291,8 +308,10 @@
 <div class="container mx-auto p-4 sm:p-6 lg:p-8">
     <div class="bg-white rounded-xl shadow-lg p-6 sm:p-8 mb-6">
         <h1 class="text-3xl font-bold text-center mb-2 text-blue-600">Nao-Studio Student Coin Leaderboard</h1>
-        <p class="text-center text-gray-500 mb-6">Track progress in real time! </p>
-        <p class="text-sm text-gray-400 mb-4 user-id-text">User ID: <span id="userIdDisplay">Loading...</span></p>
+        <p class="text-center text-gray-500 mb-6">Track progress in real time!</p>
+        <p class="text-sm text-gray-400 mb-4 user-id-text">
+            Your User ID (for sharing access): <span id="userIdDisplay">Loading...</span>
+        </p>
 
         <div class="table-container">
             <table class="leaderboard-table">
@@ -325,6 +344,9 @@
         <div class="flex flex-col sm:flex-row justify-center mt-6 space-y-4 sm:space-y-0 sm:space-x-4">
             <button id="addStudentBtn" class="bg-blue-500 text-white font-bold py-2 px-6 rounded-full shadow-lg hover:bg-blue-600 transition-colors">
                 Add Student
+            </button>
+            <button id="archiveLeaderboardBtn" class="bg-green-500 text-white font-bold py-2 px-6 rounded-full shadow-lg hover:bg-green-600 transition-colors">
+                Archive Leaderboard
             </button>
             <button id="resetLeaderboardBtn" class="bg-red-500 text-white font-bold py-2 px-6 rounded-full shadow-lg hover:bg-red-600 transition-colors">
                 Clear All Students
@@ -386,15 +408,19 @@
     </div>
 </div>
 
+<!-- Toast Message -->
+<div id="toastMessage" class="toast"></div>
+
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, collection, onSnapshot, doc, setDoc, setLogLevel, getDoc, deleteDoc, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    import { getFirestore, collection, onSnapshot, doc, setDoc, setLogLevel, getDoc, deleteDoc, getDocs, writeBatch, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
     
     // Set Firestore log level for debugging
     setLogLevel('debug');
 
     // These variables are provided by the environment and must be used.
+    // We add a fallback to handle cases where they might not be defined.
     const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
     const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
@@ -403,11 +429,12 @@
     const urlParams = new URLSearchParams(window.location.search);
     const isViewOnly = urlParams.get('mode') === 'view';
 
-    // Firebase initialization
+    // Get references to all UI elements
     let app, auth, db, userId;
     const userIdDisplay = document.getElementById('userIdDisplay');
     const leaderboardBody = document.getElementById('leaderboard-body');
     const addStudentBtn = document.getElementById('addStudentBtn');
+    const archiveLeaderboardBtn = document.getElementById('archiveLeaderboardBtn');
     const resetLeaderboardBtn = document.getElementById('resetLeaderboardBtn');
     const shareChartBtn = document.getElementById('shareChartBtn');
     const getShareableLinkBtn = document.getElementById('getShareableLinkBtn');
@@ -424,9 +451,20 @@
     const shareLinkTextarea = document.getElementById('shareLinkTextarea');
     const copyLinkBtn = document.getElementById('copyLinkBtn');
     const closeLinkModalBtn = document.getElementById('closeLinkModalBtn');
+
+    const toastMessage = document.getElementById('toastMessage');
     
     let studentsData = [];
     const totalWeeks = 12;
+
+    // Show a toast message
+    const showToast = (message) => {
+        toastMessage.textContent = message;
+        toastMessage.classList.add('show');
+        setTimeout(() => {
+            toastMessage.classList.remove('show');
+        }, 3000);
+    };
 
     // Initialize Firebase and authenticate
     try {
@@ -457,10 +495,12 @@
     } catch (error) {
             console.error('Firebase Initialization Error:', error);
             userIdDisplay.textContent = 'Initialization Failed';
+            showToast('Firebase failed to initialize. Check the console.');
     }
 
     // Function to set up the real-time listener for the leaderboard
     const setupRealtimeListener = () => {
+        // Use the public data path as defined by the security rules
         const publicCollectionPath = `/artifacts/${appId}/public/data/students`;
         const q = collection(db, publicCollectionPath);
 
@@ -469,11 +509,13 @@
             studentsData = [];
             snapshot.forEach((doc) => {
                 const data = doc.data();
-                const totalCoins = (JSON.parse(data.scoresJson || '[]')).reduce((sum, score) => sum + (parseFloat(score) || 0), 0);
+                // Ensure scores are parsed and a fallback is used if not present
+                const scoresArray = data.scoresJson ? JSON.parse(data.scoresJson) : [];
+                const totalCoins = scoresArray.reduce((sum, score) => sum + (parseFloat(score) || 0), 0);
                 studentsData.push({
                     id: doc.id,
                     ...data,
-                    scores: JSON.parse(data.scoresJson || '[]'),
+                    scores: scoresArray,
                     totalCoins
                 });
             });
@@ -485,6 +527,7 @@
             renderLeaderboard(studentsData);
         }, (error) => {
             console.error("Failed to fetch data:", error);
+            showToast('Failed to fetch data. Check database permissions.');
         });
     };
     
@@ -635,13 +678,44 @@
             name: '',
             scoresJson: JSON.stringify(Array(totalWeeks).fill(0)), // Save scores as a JSON string
             createdBy: userId,
-            createdAt: new Date()
+            createdAt: serverTimestamp()
         };
 
         try {
             await setDoc(newStudentRef, newStudentData);
+            showToast('Student added successfully!');
         } catch (e) {
             console.error("Error adding student:", e);
+            showToast('Failed to add student.');
+        }
+    };
+
+    // Function to archive the current leaderboard
+    const archiveLeaderboard = async () => {
+        if (!userId || isViewOnly) {
+            console.error("User not authenticated or in view-only mode.");
+            showToast('Not authenticated or in view-only mode.');
+            return;
+        }
+
+        if (studentsData.length === 0) {
+            showToast('Cannot archive an empty leaderboard.');
+            return;
+        }
+
+        const archiveRef = collection(db, `/artifacts/${appId}/public/data/archives`);
+        const archiveData = {
+            leaderboardData: studentsData,
+            createdAt: serverTimestamp(),
+            createdBy: userId
+        };
+
+        try {
+            await addDoc(archiveRef, archiveData);
+            showToast('Leaderboard archived successfully!');
+        } catch (e) {
+            console.error("Error archiving leaderboard:", e);
+            showToast('Failed to archive leaderboard.');
         }
     };
 
@@ -654,8 +728,10 @@
         const docRef = doc(db, `/artifacts/${appId}/public/data/students`, studentId);
         try {
             await deleteDoc(docRef);
+            showToast('Student deleted successfully.');
         } catch (e) {
             console.error("Error deleting student:", e);
+            showToast('Failed to delete student.');
         }
     };
 
@@ -677,8 +753,10 @@
 
         try {
             await batch.commit();
+            showToast('Leaderboard cleared successfully.');
         } catch (e) {
             console.error("Error clearing leaderboard:", e);
+            showToast('Failed to clear leaderboard.');
         }
     };
 
@@ -852,6 +930,7 @@
     // Add event listeners to the buttons
     if (!isViewOnly) {
         addStudentBtn.addEventListener('click', addStudent);
+        archiveLeaderboardBtn.addEventListener('click', archiveLeaderboard);
         resetLeaderboardBtn.addEventListener('click', clearAllStudents);
     }
     shareChartBtn.addEventListener('click', generateShareableChart);
