@@ -394,10 +394,18 @@
     // Set Firestore log level for debugging
     setLogLevel('debug');
 
-    // Global variables from the environment
-    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-    const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+    // These values must be replaced with your actual Firebase project configuration.
+    const firebaseConfig = {
+        apiKey: "AIzaSyC7TAoXDALIp69G78mp5B0IR6o2GlUDdQE",
+        authDomain: "nao-studio.firebaseapp.com",
+        projectId: "nao-studio",
+        storageBucket: "nao-studio.firebasestorage.app",
+        messagingSenderId: "212702745677",
+        appId: "1:212702745677:web:0421eb2c4f51e6223c7804"
+    };
+
+    const appId = "1:212702745677:web:0421eb2c4f51e6223c7804"; // Use your appId here
+    const initialAuthToken = null; // No custom token available on GitHub Pages
 
     // Check for "view" mode from URL
     const urlParams = new URLSearchParams(window.location.search);
@@ -429,19 +437,31 @@
     const totalWeeks = 12;
 
     // Initialize Firebase and authenticate
-const firebaseConfig = {
-  apiKey: "AIzaSyC7TAoXDALIp69G78mp5B0IR6o2GlUDdQE",
-  authDomain: "nao-studio.firebaseapp.com",
-  projectId: "nao-studio",
-  storageBucket: "nao-studio.firebasestorage.app",
-  messagingSenderId: "212702745677",
-  appId: "1:212702745677:web:0421eb2c4f51e6223c7804",
-  measurementId: "G-G76CXRHL4T"
-};
+    try {
+        app = initializeApp(firebaseConfig);
+        db = getFirestore(app);
+        auth = getAuth(app);
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                userId = user.uid;
+                userIdDisplay.textContent = userId;
+                // Once authenticated, set up the real-time listener
+                setupRealtimeListener();
+            } else if (!isViewOnly) {
+                // Only sign in if not in view-only mode
+                userIdDisplay.textContent = 'Authenticating...';
+                await signInAnonymously(auth);
+            } else {
+                // In view-only mode, the user is not authenticated
+                userIdDisplay.textContent = 'Read-only Mode';
+                setupRealtimeListener();
+            }
+        });
+    } catch (error) {
+            console.error('Firebase Initialization Error:', error);
+            userIdDisplay.textContent = 'Initialization Failed';
+    }
 
     // Function to set up the real-time listener for the leaderboard
     const setupRealtimeListener = () => {
