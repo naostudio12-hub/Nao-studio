@@ -291,7 +291,7 @@
 <div class="container mx-auto p-4 sm:p-6 lg:p-8">
     <div class="bg-white rounded-xl shadow-lg p-6 sm:p-8 mb-6">
         <h1 class="text-3xl font-bold text-center mb-2 text-blue-600">Nao-Studio Student Coin Leaderboard</h1>
-        <p class="text-center text-gray-500 mb-6">Track progress in real time!</p>
+        <p class="text-center text-gray-500 mb-6">Track progress in real time! </p>
         <p class="text-sm text-gray-400 mb-4 user-id-text">User ID: <span id="userIdDisplay">Loading...</span></p>
 
         <div class="table-container">
@@ -394,19 +394,11 @@
     // Set Firestore log level for debugging
     setLogLevel('debug');
 
-    // These values must be replaced with your actual Firebase project configuration.
-    const firebaseConfig = {
-        apiKey: "AIzaSyC7TAoXDALIp69G78mp5B0IR6o2GlUDdQE",
-        authDomain: "nao-studio.firebaseapp.com",
-        projectId: "nao-studio",
-        storageBucket: "nao-studio.firebasestorage.app",
-        messagingSenderId: "212702745677",
-        appId: "1:212702745677:web:0421eb2c4f51e6223c7804"
-    };
-
-    const appId = "1:212702745677:web:0421eb2c4f51e6223c7804"; // Use your appId here
-    const initialAuthToken = null; // No custom token available on GitHub Pages
-
+    // These variables are provided by the environment and must be used.
+    const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+    
     // Check for "view" mode from URL
     const urlParams = new URLSearchParams(window.location.search);
     const isViewOnly = urlParams.get('mode') === 'view';
@@ -449,11 +441,15 @@
                 // Once authenticated, set up the real-time listener
                 setupRealtimeListener();
             } else if (!isViewOnly) {
-                // Only sign in if not in view-only mode
                 userIdDisplay.textContent = 'Authenticating...';
-                await signInAnonymously(auth);
+                // Use the custom token if available, otherwise sign in anonymously
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
             } else {
-                // In view-only mode, the user is not authenticated
+                // In view-only mode, the user is not authenticated and cannot edit
                 userIdDisplay.textContent = 'Read-only Mode';
                 setupRealtimeListener();
             }
@@ -614,9 +610,11 @@
                 const docSnap = await getDoc(docRef);
                 if (docSnap.exists()) {
                     const docData = docSnap.data();
+                    // We must parse the JSON string back into an array to update it
                     const scores = JSON.parse(docData.scoresJson || '[]');
                     scores[weekIndex] = weekScore;
 
+                    // Then we stringify the array again to save it back to Firestore
                     await setDoc(docRef, { scoresJson: JSON.stringify(scores) }, { merge: true });
                 }
             }
