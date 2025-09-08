@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Student Coin Leaderboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+            min-height: 100vh;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .container {
+            max-width: 1200px;
+            margin: auto;
+            padding: 1rem;
+        }
+        .table-container {
+            overflow-x: auto;
+        }
+        .leaderboard-table {
+            width: 100%;
+            min-width: 800px;
+            border-collapse: separate;
+            border-spacing: 0 0.5rem;
+        }
+        th, td {
+            padding: 0.75rem;
+            text-align: left;
+        }
+        th {
+            background-color: #e5e7eb;
+            font-weight: 600;
+            color: #4b5563;
+        }
+        td {
+            background-color: #ffffff;
+            border-radius: 0.5rem;
+        }
+        td:first-child {
+            border-top-left-radius: 0.5rem;
+            border-bottom-left-radius: 0.5rem;
+        }
+        td:last-child {
+            border-top-right-radius: 0.5rem;
+            border-bottom-right-radius: 0.5rem;
+        }
+        .input-cell {
+            padding: 0.5rem;
+            text-align: center;
+        }
+        .coin-input {
+            width: 100%;
+            background: transparent;
+            border: 1px solid #d1d5db;
+            outline: none;
+            padding: 0.5rem;
+            text-align: center;
+            border-radius: 0.5rem;
+            -webkit-appearance: none;
+            touch-action: manipulation;
+        }
+        .total-coins-cell {
+            font-weight: bold;
+            text-align: right;
+            color: #10b981;
+        }
+        .rank-badge {
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            width: 2rem;
+            height: 2rem;
+            border-radius: 50%;
+            background-color: #3b82f6;
+            color: #ffffff;
+            font-weight: bold;
+            font-size: 1rem;
+        }
+        .user-id-text {
+            word-break: break-all;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 100;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background-color: #ffffff;
+            padding: 2rem;
+            border-radius: 1rem;
+            width: 90%;
+            max-width: 600px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .modal-content textarea {
+            flex-grow: 1;
+            resize: none;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            background-color: #f9fafb;
+            font-family: monospace;
+            white-space: pre-wrap;
+            overflow-y: auto;
+        }
+        /* Custom CSS to make the name column wider */
+        .student-name-col {
+            min-width: 16rem;
+        }
+        
+        #chartTextarea {
+            background-color: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            color: #4b5563;
+        }
+        .delete-btn {
+            background-color: #fca5a5;
+            color: #b91c1c;
+            border: none;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .delete-btn:hover {
+            background-color: #ef4444;
+            color: #ffffff;
+        }
+        
+        /* Styles for the hidden element used for image capture */
+        #chartPrintableContent {
+            background-color: #ffffff;
+            padding: 2rem;
+            border-radius: 1rem;
+            color: #1f2937;
+            font-family: 'Inter', sans-serif;
+            position: absolute;
+            top: -9999px;
+            z-index: -1;
+            width: 500px; /* Set a fixed width for consistent image size */
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+        #chartPrintableContent .header {
+            font-weight: 700;
+            text-align: center;
+            font-size: 2rem;
+            color: #3b82f6;
+        }
+        #chartPrintableContent .subheader {
+            text-align: center;
+            font-size: 1rem;
+            color: #6b7280;
+            margin-top: -0.5rem;
+        }
+        #chartPrintableContent .top-student-card {
+            background-color: #ecf3f7;
+            border: 2px solid #3b82f6;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        #chartPrintableContent .top-student-card .rank-icon {
+            font-size: 2rem;
+        }
+        #chartPrintableContent .top-student-card .student-info {
+            display: flex;
+            flex-direction: column;
+        }
+        #chartPrintableContent .top-student-card .student-info .top-student-name {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #1f2937;
+        }
+        #chartPrintableContent .top-student-card .student-info .top-student-coins {
+            font-weight: 700;
+            color: #10b981;
+        }
+        #chartPrintableContent .weekly-details {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        #chartPrintableContent .weekly-details .weekly-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: #4b5563;
+            margin-bottom: 0.5rem;
+        }
+        #chartPrintableContent .weekly-table {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.5rem;
+        }
+        #chartPrintableContent .weekly-entry {
+            background-color: #f9fafb;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            display: flex;
+            justify-content: space-between;
+        }
+        #chartPrintableContent .weekly-entry span {
+            font-weight: 500;
+        }
+        #chartPrintableContent .weekly-entry .score {
+            font-weight: 600;
+            color: #3b82f6;
+        }
+        #chartPrintableContent .leaderboard-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+        #chartPrintableContent .student-entry {
+            background-color: #f3f4f6;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        #chartPrintableContent .student-entry .rank-info {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        #chartPrintableContent .student-entry .rank-info .rank-badge {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 28px;
+            height: 28px;
+            line-height: 1; /* Key for vertical alignment */
+            border-radius: 50%;
+            background-color: #3b82f6;
+            color: #ffffff;
+            font-weight: bold;
+            font-size: 16px;
+        }
+        #chartPrintableContent .student-entry .rank-info .student-name {
+            font-weight: 600;
+            font-size: 1.125rem;
+        }
+        #chartPrintableContent .student-entry .total-coins {
+            font-weight: 700;
+            font-size: 1rem;
+            color: #10b981;
+        }
+        #chartPrintableContent .student-entry .scores-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+        #chartPrintableContent .scores-grid .weekly-entry .upcoming-text {
+            color: #9ca3af;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+<div class="container mx-auto p-4 sm:p-6 lg:p-8">
+    <div class="bg-white rounded-xl shadow-lg p-6 sm:p-8 mb-6">
+        <h1 class="text-3xl font-bold text-center mb-2 text-blue-600">Nao-Studio Student Coin Leaderboard</h1>
+        <p class="text-center text-gray-500 mb-6">Track progress in real time!</p>
+        <p class="text-sm text-gray-400 mb-4 user-id-text">User ID: <span id="userIdDisplay">Loading...</span></p>
+
+        <div class="table-container">
+            <table class="leaderboard-table">
+                <thead>
+                    <tr>
+                        <th class="rounded-l-lg">Rank</th>
+                        <th class="student-name-col">Student Name</th>
+                        <th class="text-center">Week 1</th>
+                        <th class="text-center">Week 2</th>
+                        <th class="text-center">Week 3</th>
+                        <th class="text-center">Week 4</th>
+                        <th class="text-center">Week 5</th>
+                        <th class="text-center">Week 6</th>
+                        <th class="text-center">Week 7</th>
+                        <th class="text-center">Week 8</th>
+                        <th class="text-center">Week 9</th>
+                        <th class="text-center">Week 10</th>
+                        <th class="text-center">Week 11</th>
+                        <th class="text-center">Week 12</th>
+                        <th class="total-coins-header text-right">Total Coins</th>
+                        <th class="rounded-r-lg">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="leaderboard-body">
+                    <!-- Student rows will be dynamically inserted here -->
+                </tbody>
+            </table>
+        </div>
+
+        <div class="flex flex-col sm:flex-row justify-center mt-6 space-y-4 sm:space-y-0 sm:space-x-4">
+            <button id="addStudentBtn" class="bg-blue-500 text-white font-bold py-2 px-6 rounded-full shadow-lg hover:bg-blue-600 transition-colors">
+                Add Student
+            </button>
+            <button id="resetLeaderboardBtn" class="bg-red-500 text-white font-bold py-2 px-6 rounded-full shadow-lg hover:bg-red-600 transition-colors">
+                Clear All Students
+            </button>
+            <button id="shareChartBtn" class="bg-purple-500 text-white font-bold py-2 px-6 rounded-full shadow-lg hover:bg-purple-600 transition-colors">
+                Generate Shareable Chart
+            </button>
+            <button id="getShareableLinkBtn" class="bg-sky-500 text-white font-bold py-2 px-6 rounded-full shadow-lg hover:bg-sky-600 transition-colors">
+                Get Shareable Link
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Shareable Chart -->
+<div id="shareModal" class="modal">
+    <div class="modal-content">
+        <h2 class="text-xl font-bold mb-4 text-center text-gray-700">Shareable Chart</h2>
+        
+        <!-- The hidden element for image capture -->
+        <div id="chartPrintableContent"></div>
+
+        <!-- This textarea is for the copy to clipboard text -->
+        <textarea id="chartTextarea" readonly class="w-full h-64 mb-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+
+        <div class="flex justify-between space-x-2">
+            <button id="copyChartBtn" class="bg-blue-500 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-blue-600 transition-colors text-sm sm:text-base">
+                Copy Text
+            </button>
+            <button id="downloadChartBtn" class="bg-green-500 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-green-600 transition-colors text-sm sm:text-base">
+                Download JPEG
+            </button>
+            <button id="downloadPdfBtn" class="bg-green-700 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-green-800 transition-colors text-sm sm:text-base">
+                Download PDF
+            </button>
+            <button id="closeModalBtn" class="bg-gray-400 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-gray-500 transition-colors text-sm sm:text-base">
+                Close
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Shareable Link -->
+<div id="shareLinkModal" class="modal">
+    <div class="modal-content">
+        <h2 class="text-xl font-bold mb-4 text-center text-gray-700">Shareable Link</h2>
+        <p class="text-center text-gray-500 mb-4">Anyone with this link can view the live leaderboard (read-only).</p>
+        <p class="text-center text-gray-500 text-sm mb-4">You can use a URL shortening service if you need a shorter link.</p>
+        <textarea id="shareLinkTextarea" readonly class="w-full h-24 mb-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+
+        <div class="flex justify-center space-x-4">
+            <button id="copyLinkBtn" class="bg-blue-500 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-blue-600 transition-colors">
+                Copy Link
+            </button>
+            <button id="closeLinkModalBtn" class="bg-gray-400 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-gray-500 transition-colors">
+                Close
+            </button>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, collection, onSnapshot, doc, setDoc, setLogLevel, getDoc, deleteDoc, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    
+    // Set Firestore log level for debugging
+    setLogLevel('debug');
+
+    // Global variables from the environment
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+    // Check for "view" mode from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const isViewOnly = urlParams.get('mode') === 'view';
+
+    // Firebase initialization
+    let app, auth, db, userId;
+    const userIdDisplay = document.getElementById('userIdDisplay');
+    const leaderboardBody = document.getElementById('leaderboard-body');
+    const addStudentBtn = document.getElementById('addStudentBtn');
+    const resetLeaderboardBtn = document.getElementById('resetLeaderboardBtn');
+    const shareChartBtn = document.getElementById('shareChartBtn');
+    const getShareableLinkBtn = document.getElementById('getShareableLinkBtn');
+
+    const shareModal = document.getElementById('shareModal');
+    const chartTextarea = document.getElementById('chartTextarea');
+    const chartPrintableContent = document.getElementById('chartPrintableContent');
+    const copyChartBtn = document.getElementById('copyChartBtn');
+    const downloadChartBtn = document.getElementById('downloadChartBtn');
+    const downloadPdfBtn = document.getElementById('downloadPdfBtn');
+    const closeModalBtn = document.getElementById('closeModalBtn');
+
+    const shareLinkModal = document.getElementById('shareLinkModal');
+    const shareLinkTextarea = document.getElementById('shareLinkTextarea');
+    const copyLinkBtn = document.getElementById('copyLinkBtn');
+    const closeLinkModalBtn = document.getElementById('closeLinkModalBtn');
+    
+    let studentsData = [];
+    const totalWeeks = 12;
+
+    // Initialize Firebase and authenticate
+    try {
+        app = initializeApp(firebaseConfig);
+        db = getFirestore(app);
+        auth = getAuth(app);
+
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                userId = user.uid;
+                userIdDisplay.textContent = userId;
+                // Once authenticated, set up the real-time listener
+                setupRealtimeListener();
+            } else if (!isViewOnly) {
+                // Only sign in if not in view-only mode
+                userIdDisplay.textContent = 'Authenticating...';
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } else {
+                // In view-only mode, the user is not authenticated
+                userIdDisplay.textContent = 'Read-only Mode';
+                setupRealtimeListener();
+            }
+        });
+    } catch (error) {
+            console.error('Firebase Initialization Error:', error);
+            userIdDisplay.textContent = 'Initialization Failed';
+    }
+
+    // Function to set up the real-time listener for the leaderboard
+    const setupRealtimeListener = () => {
+        const publicCollectionPath = `/artifacts/${appId}/public/data/students`;
+        const q = collection(db, publicCollectionPath);
+
+        // Listen to students data
+        onSnapshot(q, (snapshot) => {
+            studentsData = [];
+            snapshot.forEach((doc) => {
+                const data = doc.data();
+                const totalCoins = (JSON.parse(data.scoresJson || '[]')).reduce((sum, score) => sum + (parseFloat(score) || 0), 0);
+                studentsData.push({
+                    id: doc.id,
+                    ...data,
+                    scores: JSON.parse(data.scoresJson || '[]'),
+                    totalCoins
+                });
+            });
+
+            // Sort students by total coins in descending order
+            studentsData.sort((a, b) => b.totalCoins - a.totalCoins);
+            
+            // Render the leaderboard table
+            renderLeaderboard(studentsData);
+        }, (error) => {
+            console.error("Failed to fetch data:", error);
+        });
+    };
+    
+    // Helper function to parse input value
+    const getNumericValue = (inputString) => {
+        if (inputString === '1/2') {
+            return 0.5;
+        }
+        return parseFloat(inputString) || 0;
+    };
+
+    // Function to render the leaderboard table
+    const renderLeaderboard = (students) => {
+        const existingRows = Array.from(leaderboardBody.querySelectorAll('tr'));
+        const existingIds = new Set(existingRows.map(row => row.dataset.id));
+        const newIds = new Set(students.map(s => s.id));
+
+        // Remove rows that no longer exist in the data
+        existingRows.forEach(row => {
+            const rowId = row.dataset.id;
+            if (!newIds.has(rowId)) {
+                row.remove();
+            }
+        });
+
+        // Add or update rows
+        students.forEach((student, index) => {
+            const existingRow = leaderboardBody.querySelector(`tr[data-id="${student.id}"]`);
+            const disabledAttribute = isViewOnly ? 'disabled' : '';
+
+            if (existingRow) {
+                // Update existing row
+                const rankBadge = existingRow.querySelector('.rank-badge');
+                if (rankBadge) rankBadge.textContent = index + 1;
+
+                const totalCoinsCell = existingRow.querySelector('.total-coins-cell');
+                if (totalCoinsCell) totalCoinsCell.textContent = student.totalCoins;
+                
+                // Update input values, but only if they don't have focus
+                const nameInput = existingRow.querySelector(`input[data-field="name"]`);
+                if (document.activeElement !== nameInput) {
+                    nameInput.value = student.name || '';
+                }
+
+                for (let i = 0; i < totalWeeks; i++) {
+                    const scoreInput = existingRow.querySelector(`input[data-field="week-${i}"]`);
+                    if (document.activeElement !== scoreInput) {
+                         // Check if value has changed before updating to prevent cursor jump
+                        let newValue = student.scores[i] || '';
+                        if (newValue === 0.5) {
+                            newValue = '1/2';
+                        }
+                        if (scoreInput.value !== newValue.toString()) {
+                            scoreInput.value = newValue;
+                        }
+                    }
+                }
+            } else {
+                // Create and insert a new row
+                const newRow = document.createElement('tr');
+                newRow.dataset.id = student.id;
+                newRow.innerHTML = `
+                    <td class="whitespace-nowrap"><div class="rank-badge">${index + 1}</div></td>
+                    <td class="student-name-col"><input type="text" value="${student.name || ''}" placeholder="Name" class="w-full bg-transparent outline-none p-2 rounded-lg" data-id="${student.id}" data-field="name" ${disabledAttribute}></td>
+                    ${Array(totalWeeks).fill(0).map((_, weekIndex) => {
+                        let scoreValue = student.scores[weekIndex] || '';
+                        if (scoreValue === 0.5) {
+                            scoreValue = '1/2';
+                        }
+                        return `
+                            <td class="input-cell">
+                                <input type="text" value="${scoreValue}" placeholder="0 or 1/2" class="coin-input" data-id="${student.id}" data-field="week-${weekIndex}" ${disabledAttribute}>
+                            </td>
+                        `;
+                    }).join('')}
+                    <td class="total-coins-cell text-right pr-4">${student.totalCoins}</td>
+                    <td>
+                        ${!isViewOnly ? `<button class="delete-btn" data-id="${student.id}">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+                            </svg>
+                        </button>` : ''}
+                    </td>
+                `;
+                leaderboardBody.appendChild(newRow);
+            }
+        });
+
+        // Re-attach event listeners to all inputs and buttons
+        if (!isViewOnly) {
+            leaderboardBody.querySelectorAll('input').forEach(input => {
+                input.removeEventListener('input', handleInput);
+                input.addEventListener('input', (e) => handleInput(e.target));
+            });
+            leaderboardBody.querySelectorAll('.delete-btn').forEach(button => {
+                button.removeEventListener('click', deleteStudent);
+                button.addEventListener('click', (e) => deleteStudent(e.currentTarget.dataset.id));
+            });
+        }
+    };
+
+    // Function to handle input changes and update the database
+    const handleInput = async (input) => {
+        if (!userId || isViewOnly) {
+            console.error("User not authenticated or in view-only mode.");
+            return;
+        }
+
+        const studentId = input.dataset.id;
+        const field = input.dataset.field;
+        const value = input.value.trim();
+        
+        const publicDocPath = `/artifacts/${appId}/public/data/students/${studentId}`;
+        const docRef = doc(db, publicDocPath);
+        
+        try {
+            if (field === 'name') {
+                await setDoc(docRef, { name: value }, { merge: true });
+            } else if (field.startsWith('week-')) {
+                const weekIndex = parseInt(field.split('-')[1]);
+                const weekScore = getNumericValue(value);
+                
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    const docData = docSnap.data();
+                    const scores = JSON.parse(docData.scoresJson || '[]');
+                    scores[weekIndex] = weekScore;
+
+                    await setDoc(docRef, { scoresJson: JSON.stringify(scores) }, { merge: true });
+                }
+            }
+        } catch (e) {
+            console.error("Error updating document:", e);
+        }
+    };
+
+    // Function to add a new student
+    const addStudent = async () => {
+        if (!userId || isViewOnly) {
+            console.error("User not authenticated or in view-only mode.");
+            return;
+        }
+
+        const newStudentRef = doc(collection(db, `/artifacts/${appId}/public/data/students`));
+        const newStudentData = {
+            name: '',
+            scoresJson: JSON.stringify(Array(totalWeeks).fill(0)), // Save scores as a JSON string
+            createdBy: userId,
+            createdAt: new Date()
+        };
+
+        try {
+            await setDoc(newStudentRef, newStudentData);
+        } catch (e) {
+            console.error("Error adding student:", e);
+        }
+    };
+
+    // Function to delete a student
+    const deleteStudent = async (studentId) => {
+        if (!userId || isViewOnly) {
+            console.error("User not authenticated or in view-only mode.");
+            return;
+        }
+        const docRef = doc(db, `/artifacts/${appId}/public/data/students`, studentId);
+        try {
+            await deleteDoc(docRef);
+        } catch (e) {
+            console.error("Error deleting student:", e);
+        }
+    };
+
+    // Function to clear all students
+    const clearAllStudents = async () => {
+        if (!userId || isViewOnly) {
+            console.error("User not authenticated or in view-only mode.");
+            return;
+        }
+        
+        const publicCollectionPath = `/artifacts/${appId}/public/data/students`;
+        const q = collection(db, publicCollectionPath);
+        const snapshot = await getDocs(q);
+        
+        const batch = writeBatch(db);
+        snapshot.forEach((doc) => {
+            batch.delete(doc.ref);
+        });
+
+        try {
+            await batch.commit();
+        } catch (e) {
+            console.error("Error clearing leaderboard:", e);
+        }
+    };
+
+    // Function to generate and display the shareable chart
+    const generateShareableChart = () => {
+        let lastActiveWeekIndex = -1;
+        studentsData.forEach(student => {
+            student.scores.forEach((score, weekIndex) => {
+                if (score > 0) {
+                    lastActiveWeekIndex = Math.max(lastActiveWeekIndex, weekIndex);
+                }
+            });
+        });
+    
+        // Build the text for the clipboard
+        let chartText = "🌟 Nao-Studio Coin Leaderboard 🌟\n\n";
+        chartText += "Here is the current leaderboard!\n\n";
+        
+        // Build the HTML for the JPEG image
+        let htmlContent = `<div class="header">Nao-Studio Student Coin Leaderboard</div>`;
+        htmlContent += `<div class="subheader">Here is the current leaderboard!</div>`;
+
+        if (studentsData.length === 0) {
+            chartText += "No students have been added to the leaderboard yet.";
+            htmlContent += `<p class="text-center mt-4">No students have been added to the leaderboard yet.</p>`;
+        } else {
+            htmlContent += `<div class="top-student-card">
+                <div class="rank-icon">🥇</div>
+                <div class="student-info">
+                    <span class="top-student-name">${studentsData[0].name || 'Top Student'}</span>
+                    <span class="top-student-coins">${studentsData[0].totalCoins} Total Coins</span>
+                </div>
+            </div>`;
+
+            htmlContent += `<h3 class="weekly-title text-center mt-4">Full Leaderboard & Weekly Breakdown</h3>`;
+            htmlContent += `<div class="leaderboard-list">`;
+            
+            // Generate full leaderboard list with weekly scores
+            studentsData.forEach((student, index) => {
+                chartText += "-------------------------\n";
+                chartText += `**Rank ${index + 1}:** ${student.name || 'Student'}\n`;
+                chartText += `**Total Coins:** ${student.totalCoins}\n`;
+                chartText += `**Weekly Scores:**\n`;
+                
+                // HTML for JPEG
+                htmlContent += `<div class="student-entry">
+                    <div class="rank-info">
+                        <div class="rank-badge">${index + 1}</div>
+                        <div class="student-name">${student.name || 'Student'}</div>
+                    </div>
+                    <div class="total-coins">${student.totalCoins} Total Coins</div>
+                    <div class="scores-grid">`;
+                
+                student.scores.forEach((score, weekIndex) => {
+                    const isUpcoming = weekIndex > lastActiveWeekIndex;
+                    const displayScore = isUpcoming ? 'Upcoming' : (score === 0.5 ? '1/2' : score);
+                    
+                    chartText += `   - Week ${weekIndex + 1}: ${displayScore}\n`;
+
+                    htmlContent += `
+                        <div class="weekly-entry">
+                            <span>Week ${weekIndex + 1}:</span>
+                            <span class="score ${isUpcoming ? 'upcoming-text' : ''}">${displayScore}</span>
+                        </div>`;
+                });
+                
+                htmlContent += `</div></div>`;
+            });
+            htmlContent += `</div>`;
+        }
+        
+        chartTextarea.value = chartText;
+        chartPrintableContent.innerHTML = htmlContent;
+
+        shareModal.style.display = 'flex';
+    };
+
+    // Function to generate and display the shareable link
+    const generateShareableLink = () => {
+        const baseUrl = window.location.href.split('?')[0]; // Get the URL without any existing query parameters
+        const shareableLink = `${baseUrl}?mode=view`;
+        shareLinkTextarea.value = shareableLink;
+        shareLinkModal.style.display = 'flex';
+    };
+
+    // Function to download the chart as a JPEG
+    const downloadChartAsJPEG = async () => {
+        const element = document.getElementById('chartPrintableContent');
+        if (!element) {
+            console.error("Chart content element not found.");
+            return;
+        }
+        
+        // Temporarily make the element visible to be captured by html2canvas
+        element.style.top = '0';
+        element.style.left = '0';
+        element.style.zIndex = '101';
+        
+        try {
+            const canvas = await html2canvas(element, { scale: 2, useCORS: true });
+            const imageData = canvas.toDataURL('image/jpeg', 0.9);
+            
+            const link = document.createElement('a');
+            link.href = imageData;
+            link.download = 'leaderboard-chart.jpeg';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } catch (error) {
+            console.error("Error generating JPEG image:", error);
+        } finally {
+            // Hide the element again
+            element.style.top = '-9999px';
+            element.style.left = '-9999px';
+            element.style.zIndex = '-1';
+        }
+    };
+
+    // Function to download the chart as a PDF
+    const downloadChartAsPDF = async () => {
+        const element = document.getElementById('chartPrintableContent');
+        if (!element) {
+            console.error("Chart content element not found.");
+            return;
+        }
+
+        const { jsPDF } = window.jspdf;
+
+        // Temporarily make the element visible to be captured by html2canvas
+        element.style.top = '0';
+        element.style.left = '0';
+        element.style.zIndex = '101';
+        element.style.width = '600px'; // Set a larger width for better resolution
+
+        try {
+            const canvas = await html2canvas(element, { scale: 2, useCORS: true });
+            const imgData = canvas.toDataURL('image/jpeg', 1.0);
+            
+            const imgWidth = 210; // A4 width in mm
+            const pageHeight = 295; // A4 height in mm
+            const imgHeight = canvas.height * imgWidth / canvas.width;
+            let heightLeft = imgHeight;
+            
+            const doc = new jsPDF('p', 'mm');
+            let position = 0;
+            
+            doc.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+            heightLeft -= pageHeight;
+            
+            while (heightLeft >= 0) {
+                position = heightLeft - imgHeight;
+                doc.addPage();
+                doc.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+                heightLeft -= pageHeight;
+            }
+
+            doc.save('leaderboard-chart.pdf');
+
+        } catch (error) {
+            console.error("Error generating PDF:", error);
+        } finally {
+            // Hide the element and reset width
+            element.style.top = '-9999px';
+            element.style.left = '-9999px';
+            element.style.zIndex = '-1';
+            element.style.width = '500px';
+        }
+    };
+
+
+    // Add event listeners to the buttons
+    if (!isViewOnly) {
+        addStudentBtn.addEventListener('click', addStudent);
+        resetLeaderboardBtn.addEventListener('click', clearAllStudents);
+    }
+    shareChartBtn.addEventListener('click', generateShareableChart);
+    getShareableLinkBtn.addEventListener('click', generateShareableLink);
+
+    // Modal control for chart share
+    closeModalBtn.addEventListener('click', () => {
+        shareModal.style.display = 'none';
+    });
+    copyChartBtn.addEventListener('click', () => {
+        chartTextarea.select();
+        document.execCommand('copy');
+        copyChartBtn.textContent = 'Copied!';
+        setTimeout(() => {
+            copyChartBtn.textContent = 'Copy Text';
+        }, 2000);
+    });
+    downloadChartBtn.addEventListener('click', downloadChartAsJPEG);
+    downloadPdfBtn.addEventListener('click', downloadChartAsPDF);
+
+    // Modal control for link share
+    closeLinkModalBtn.addEventListener('click', () => {
+        shareLinkModal.style.display = 'none';
+    });
+    copyLinkBtn.addEventListener('click', () => {
+        shareLinkTextarea.select();
+        document.execCommand('copy');
+        copyLinkBtn.textContent = 'Copied!';
+        setTimeout(() => {
+            copyLinkBtn.textContent = 'Copy Link';
+        }, 2000);
+    });
+</script>
+
+</body>
+</html>
+
